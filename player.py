@@ -3,6 +3,12 @@ import random
 import pygame
 from variables import global_variables
 from nn import NeuralNetwork
+import math
+import numpy as np
+
+
+def eucidelian_dist(x1, x2, y1, y2):
+    return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
 
 class Player(pygame.sprite.Sprite):
@@ -38,6 +44,65 @@ class Player(pygame.sprite.Sprite):
             layer_sizes = [3, 10, 2]  # TODO (Design your architecture here by changing the values)
             self.nn = NeuralNetwork(layer_sizes)
 
+    def create_nn_input(self, screen_width, screen_height, obstacles, player_x, player_y):
+        """
+        Creates input vector of the neural network.
+
+        :param screen_width:
+        :param screen_height:
+        :param obstacles:
+        :param player_x:
+        :param player_y:
+        :return: nn_input
+        """
+        nn_input = [player_x / screen_width, player_y / screen_height]
+        for i in range(3):
+            try:
+                y, x = obstacles[i]['y'], obstacles[i]['x']
+                if y - 2 < player_y:
+                    nn_input.append((screen_height - y) / screen_height)
+                    nn_input.append(x)
+                else:
+                    nn_input.append(1)
+                    nn_input.append(1)
+            except:
+                nn_input.append(1)
+                nn_input.append(1)
+
+        nn_input = np.array(nn_input)
+        return nn_input
+
+    def create_nn_input_normalized(self, screen_height, obstacles, player_x, player_y):
+        """
+        Creates input vector of the neural network with batch normalization.
+
+        :param screen_width:
+        :param screen_height:
+        :param obstacles:
+        :param player_x:
+        :param player_y:
+        :return: nn_input
+        """
+        nn_input = [player_x, player_y]
+        for i in range(3):
+            try:
+                y, x = obstacles[i]['y'], obstacles[i]['x']
+                if y - 2 < player_y:
+                    nn_input.append((screen_height - y))
+                    nn_input.append(x)
+                else:
+                    nn_input.append(1)
+                    nn_input.append(1)
+            except:
+                nn_input.append(1)
+                nn_input.append(1)
+
+        nn_input = np.array(nn_input)
+        batch_mean = sum(nn_input) / len(nn_input)
+        batch_var = sum((nn_input - batch_mean) ** 2) / len(nn_input)
+        nn_input = (nn_input - batch_mean) / (math.sqrt(batch_var + 1e-8))
+        return nn_input
+
     def think(self, screen_width, screen_height, obstacles, player_x, player_y):
         """
         Creates input vector of the neural network and determines the gravity according to neural network's output.
@@ -46,15 +111,16 @@ class Player(pygame.sprite.Sprite):
         :param screen_height: Game's screen height which is 800.
         :param obstacles: List of obstacles that are above the player. Each entry is a dictionary having 'x' and 'y' of
         the obstacle as the key. The list is sorted based on the obstacle's 'y' point on the screen. Hence, obstacles[0]
-        is the first obstacle on the scene. It is also worthwhile noting that 'y' range is in [-100, 656], such that
+        is the nearest obstacle to our player. It is also worthwhile noting that 'y' range is in [-100, 656], such that
         -100 means it is off screen (Topmost point) and 656 means in parallel to our player's 'y' point.
         :param player_x: 'x' position of the player
         :param player_y: 'y' position of the player
         """
         # TODO (change player's gravity here by calling self.change_gravity)
 
-        # This is a test code that changes the gravity based on a random number. Remove it before your implementation.
-        if random.randint(0, 2):
+        nn_input = self.create_nn_input_normalized(screen_height, obstacles, player_x, player_y)
+        nn_output = self.nn.forward(nn_input)
+        if nn_output[0] > nn_output[1]:
             self.change_gravity('left')
         else:
             self.change_gravity('right')

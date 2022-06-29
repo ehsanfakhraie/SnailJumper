@@ -40,11 +40,12 @@ class NeuralNetwork:
         :return: Output vector
         """
         # TODO (Implement forward function here)
-        # Forward propagation
-        # input layer
-        z_1 = np.dot(self.W_1, x) + self.b_1
-        a_1 = self.activation(z_1)
-        # hidden layer
-        z_2 = np.dot(self.W_2, a_1) + self.b_2
-        a_2 = self.activation(z_2)
-        return a_2
+
+        x = np.array(x)
+        x = x.reshape(self.layer_sizes[0], 1)
+        z1 = self.W_1 @ x + self.b_1
+        A1 = self.activation(z1)  # (50, 1)
+
+        out = self.activation(self.W_2 @ A1 + self.b_2, function='softmax')  # (2, 1)
+
+        return out
