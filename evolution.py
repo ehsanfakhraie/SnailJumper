@@ -9,6 +9,9 @@ class Evolution:
         self.game_mode = "Neuroevolution"
         self.pop_mode = 'rw'
         self.parent_mode = 'sus'
+        self.log = []
+        self.mutate_num = 0
+        self.mutate_thresh = 0.2
 
     def next_population_selection(self, players, num_players):
         """
@@ -18,18 +21,19 @@ class Evolution:
         :param players: list of players in the previous generation
         :param num_players: number of players that we return
         """
-        # TODO (Implement top-k algorithm here)
-        # TODO (Additional: Implement roulette wheel here)
-        # TODO (Additional: Implement SUS here)
 
-        # TODO (Additional: Learning curve)
         sorted_players = sorted(players, key=lambda player: player.fitness, reverse=True)
         best_fitness = sorted_players[0].fitness
         worst_fitness = sorted_players[len(sorted_players) - 1].fitness
         fitnesses = [player.fitness for player in players]
         mean_fitness = sum(fitnesses) / len(fitnesses)
-        f = open("data.txt", 'a')
-        f.write(f"{best_fitness} {worst_fitness} {mean_fitness} \n")
+
+        fits = list(map(lambda player: player.fitness, players))
+        max = np.max(fits)
+        min = np.min(fits)
+        average = np.average(fits)
+        print([min, max, average, self.mutate_num, self.mutate_thresh])
+        self.log.append((min, max, average, self.mutate_num))
 
         if self.pop_mode == 'rw':
             return self.roulette_wheel(players, num_players)
@@ -89,49 +93,34 @@ class Evolution:
             array += np.random.randn(array.shape[0] * array.shape[1]).reshape(array.shape[0], array.shape[1])
 
     def mutate(self, child):
-        # child: an object of class `Player`
         threshold = 0.3
-        # random_number = np.random.uniform(0, 1, 1)
-        # if random_number < threshold:
-        self.add_noise(child.nn.W_1, threshold)
-        self.add_noise(child.nn.W_2, threshold)
-        self.add_noise(child.nn.b_1, threshold)
-        self.add_noise(child.nn.b_2, threshold)
+        self.add_noise(child.nn.layers[0], threshold)
+        self.add_noise(child.nn.layers[1], threshold)
+        self.add_noise(child.nn.biases[0], threshold)
+        self.add_noise(child.nn.biases[1], threshold)
 
-    def crossover(self, child1, child2, parent1, parent2):
-        row_size, column_size = child1.shape
-        section_1, section_2 = int(row_size / 3), int(2 * row_size / 3)
-
-        random_number = np.random.uniform(0, 1, 1)
-
-        if random_number > 0.5:
-            child1[:section_1, :] = parent1[:section_1:, :]
-            child1[section_1:section_2, :] = parent2[section_1:section_2, :]
-            child1[section_2:, :] = parent1[section_2:, :]
-
-            child2[:section_1, :] = parent2[:section_1:, :]
-            child2[section_1:section_2, :] = parent1[section_1:section_2, :]
-            child2[section_2:, :] = parent2[section_2:, :]
-        else:
-            child1[:section_1, :] = parent2[:section_1:, :]
-            child1[section_1:section_2, :] = parent1[section_1:section_2, :]
-            child1[section_2:, :] = parent2[section_2:, :]
-
-            child2[:section_1, :] = parent1[:section_1:, :]
-            child2[section_1:section_2, :] = parent2[section_1:section_2, :]
-            child2[section_2:, :] = parent1[section_2:, :]
+    def crossover(self, clayers1, clayers2, players1, players2):
+        for i in range(len(players1)):
+            layer1 = players1[i]
+            layer2 = players2[i]
+            length = len(layer1) * len(layer1[0])
+            index = round(np.random.random() * length)
+            layer3 = np.array(list(layer1.reshape(length)[:index]) + list(layer2.reshape(length)[index:])).reshape(
+                [len(layer1), len(layer1[0])])
+            layer4 = np.array(list(layer2.reshape(length)[:index]) + list(layer1.reshape(length)[index:])).reshape(
+                [len(layer1), len(layer1[0])])
+            clayers1[i] = layer3
+            clayers2[i] = layer4
 
     def child_production(self, parent1, parent2):
         child1 = self.clone_player(parent1)
         child2 = self.clone_player(parent2)
-        tmp = child1.nn.W_1.copy()
 
-        self.crossover(child1.nn.W_1, child2.nn.W_1, parent1.nn.W_1, parent2.nn.W_1)
-        self.crossover(child1.nn.W_2, child2.nn.W_2, parent1.nn.W_2, parent2.nn.W_2)
-        self.crossover(child1.nn.b_1, child2.nn.b_1, parent1.nn.b_1, parent2.nn.b_1)
-        self.crossover(child1.nn.b_2, child2.nn.b_2, parent1.nn.b_2, parent2.nn.b_2)
+        self.crossover(child1.nn.layers, child2.nn.layers, parent1.nn.layers, parent2.nn.layers)
+        self.crossover(child1.nn.layers, child2.nn.layers, parent1.nn.layers, parent2.nn.layers)
+        self.crossover(child1.nn.biases, child2.nn.biases, parent1.nn.biases, parent2.nn.biases)
+        self.crossover(child1.nn.biases, child2.nn.biases, parent1.nn.biases, parent2.nn.biases)
 
-        # print("AFTER ", child1.nn.W_1 - tmp)
         self.mutate(child1)
         self.mutate(child2)
         return child1, child2
@@ -146,13 +135,9 @@ class Evolution:
         """
         first_generation = prev_players is None
         if first_generation:
-            # print(f"num_players {num_players}")
-            # print(f"prev_players len {len(prev_players)}")
 
             return [Player(self.game_mode) for _ in range(num_players)]
         else:
-            # print(f"num_players {num_players}")
-            # print(f"prev_players len {len(prev_players)}")
             prev_parents = prev_players.copy()
             children = []
 
@@ -160,8 +145,6 @@ class Evolution:
                 prev_parents = self.roulette_wheel(prev_parents, len(prev_parents))
             elif self.parent_mode == 'sus':
                 prev_parents = self.sus_selector(prev_parents, len(prev_parents))
-
-            # print(len(prev_parents))
 
             for i in range(0, len(prev_parents), 2):
                 child1, child2 = self.child_production(prev_parents[i], prev_parents[i + 1])

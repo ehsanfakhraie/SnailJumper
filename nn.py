@@ -13,14 +13,22 @@ class NeuralNetwork:
         """
         # TODO (Implement FCNNs architecture here)
         # Initialize weights and biases
-        self.W_1 = np.random.randn(layer_sizes[1], layer_sizes[0])
-        self.b_1 = np.zeros((layer_sizes[1], 1))
-        self.W_2 = np.random.randn(layer_sizes[2], layer_sizes[1])
-        self.b_2 = np.zeros((layer_sizes[2], 1))
+
+        layers = []
+        biases = []
+        for i in range((len(layer_sizes) - 1)):
+            np.random.seed()
+            layer = np.random.normal(0, 1, [layer_sizes[i + 1], layer_sizes[i]])
+            bias = np.zeros([layer_sizes[i + 1], 1])
+            layers.append(layer)
+            biases.append(bias)
+        self.layers = layers
+        self.biases = biases
 
     def activation(self, x, function='sigmoid'):
         """
         The activation function of our neural network, e.g., Sigmoid, ReLU.
+        :param function: The activation function to be used.
         :param x: Vector of a layer in our network.
         :return: Vector after applying activation function.
         """
@@ -40,12 +48,10 @@ class NeuralNetwork:
         :return: Output vector
         """
         # TODO (Implement forward function here)
-
-        x = np.array(x)
-        x = x.reshape(self.layer_sizes[0], 1)
-        z1 = self.W_1 @ x + self.b_1
-        A1 = self.activation(z1)  # (50, 1)
-
-        out = self.activation(self.W_2 @ A1 + self.b_2, function='softmax')  # (2, 1)
-
-        return out
+        answer = x
+        for i in range(len(self.layers)):
+            if i < len(self.layers) - 1:
+                answer = self.activation((self.layers[i] @ answer + self.biases[i][0]), "sigmoid")
+            else:
+                answer = self.activation((self.layers[i] @ answer + self.biases[i][0]), "sigmoid")
+        return answer

@@ -1,3 +1,4 @@
+from datetime import datetime
 from sys import exit
 from numpy.random import randint, choice
 import numpy as np
@@ -6,6 +7,7 @@ from evolution import Evolution
 from player import Player
 from variables import global_variables
 import pygame
+import pandas as pd
 
 
 def display_score():
@@ -26,8 +28,11 @@ def display_generation():
     score_surf = small_game_font.render(f"Generation: {generation}", False, (64, 64, 64))
     score_rect = score_surf.get_rect(topleft=(8, 50))
     screen.blit(score_surf, score_rect)
-    score_surf = small_game_font.render(f"players left: {len(players)}", False, (64, 64, 64))
-    score_rect = score_surf.get_rect(topleft=(8, 80))
+
+
+def display_players():
+    score_surf = small_game_font.render(f"Population: {len(players)}", False, (64, 64, 64))
+    score_rect = score_surf.get_rect(topleft=(8, 100))
     screen.blit(score_surf, score_rect)
 
 
@@ -145,7 +150,7 @@ if __name__ == '__main__':
     game_mode = None
     start_time = 0
     best_score = 0
-    num_players = 300
+    num_players = 150
 
     background_surface = pygame.image.load('Graphics/Background.jpg').convert()
 
@@ -187,6 +192,9 @@ if __name__ == '__main__':
         global_variables['events'] = pygame.event.get()
         for event in global_variables['events']:
             if event.type == pygame.QUIT:
+                data = pd.DataFrame(np.array(evolution.log), columns=["min", "max", "avg", "mutate_num"])
+                csv_name = "output/log_" + datetime.now().strftime("%d%H%M%S") + ".csv"
+                data.to_csv(csv_name)
                 pygame.quit()
                 exit()
             if game_active:
@@ -245,6 +253,7 @@ if __name__ == '__main__':
             current_score = display_score()
             if game_mode == "Neuroevolution":
                 display_generation()
+                display_players()
                 update_fitness()
 
             if current_score > best_score:
